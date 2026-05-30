@@ -1,4 +1,4 @@
-# cloudshop
+
 # CloudShop - Production Grade E-Commerce Platform on AWS
 
 ## Project Overview
