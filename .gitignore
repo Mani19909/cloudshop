@@ -1,0 +1,48 @@
+# ---- Terraform ----
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+.terraform.lock.hcl
+terraform-outputs.json
+*.tfvars.json          # Never commit var files with secrets
+override.tf
+override.tf.json
+
+# ---- Ansible ----
+*.retry
+ansible/vars/secrets.yml   # Vault-encrypted — but exclude just in case
+.vault_pass
+*.pem                       # SSH private keys
+
+# ---- Node.js ----
+node_modules/
+npm-debug.log*
+coverage/
+dist/
+.env
+.env.local
+.env.*.local
+
+# ---- Docker ----
+.docker/
+
+# ---- IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ---- OS ----
+Thumbs.db
+desktop.ini
+
+# ---- Kubernetes ----
+kubeconfig
+*.kubeconfig
+
+# ---- Secrets (extra safety) ----
+*secret*
+*password*
+*credentials*

@@ -1,0 +1,132 @@
+# docker-compose.yml
+# Local development — mirrors production stack
+# Usage: docker-compose up -d
+
+version: "3.9"
+
+services:
+
+  # ---- PostgreSQL ----
+  postgres:
+    image: postgres:15-alpine
+    container_name: cloudshop-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       cloudshop
+      POSTGRES_USER:     cloudshop_admin
+      POSTGRES_PASSWORD: localpassword
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./app/backend/src/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudshop_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cloudshop-net
+
+  # ---- Backend API ----
+  backend:
+    build:
+      context: ./app/backend
+      target: builder        # Use builder stage in dev (has nodemon)
+    container_name: cloudshop-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV:    development
+      PORT:        3000
+      DB_HOST:     postgres
+      DB_PORT:     5432
+      DB_NAME:     cloudshop
+      DB_USER:     cloudshop_admin
+      DB_PASSWORD: localpassword
+      APP_VERSION: local
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./app/backend/src:/app/src   # Hot reload in dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm run dev
+    networks:
+      - cloudshop-net
+
+  # ---- Frontend ----
+  frontend:
+    build:
+      context: ./app/frontend
+      target: builder
+    container_name: cloudshop-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:3000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./app/frontend/src:/app/src
+    depends_on:
+      - backend
+    command: npm run dev -- --host
+    networks:
+      - cloudshop-net
+
+  # ---- Worker ----
+  worker:
+    build:
+      context: ./app/worker
+    container_name: cloudshop-worker
+    restart: unless-stopped
+    environment:
+      DB_HOST:     postgres
+      DB_USER:     cloudshop_admin
+      DB_PASSWORD: localpassword
+      DB_NAME:     cloudshop
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cloudshop-net
+
+  # ---- Prometheus (local) ----
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cloudshop-prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    networks:
+      - cloudshop-net
+
+  # ---- Grafana (local) ----
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cloudshop-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER:     admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_PATHS_PROVISIONING:      /etc/grafana/provisioning
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - cloudshop-net
+
+volumes:
+  postgres_data:
+  grafana_data:
+
+networks:
+  cloudshop-net:
+    driver: bridge
